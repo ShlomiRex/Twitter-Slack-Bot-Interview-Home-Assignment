@@ -35,10 +35,57 @@ def post_new_content(page: str, tweets: [Tweet]):
     :param tweets: List of tweets
     :return:
     """
+    tweets_begin_blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": f"Showing new content for :star:{page}:star:",
+                "emoji": True
+            }
+        },
+        {
+            "type": "divider"
+        }
+    ]
+    tweets_end_blocks = [
+        {
+            "type": "divider"
+        },
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": f"End content for :star:{page}:star:",
+                "emoji": True
+            }
+        }
+    ]
+
+    tweets_no_new_content_blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": f"No new content for :star:{page}:star:",
+                "emoji": True
+            }
+        }
+    ]
+
     if tweets:
-        client.chat_postMessage(channel=channel, text=f"New content for: {page}", )
-    for tweet in tweets:
-        client.chat_postMessage(channel=channel, text=tweet.text)
+        # Begin
+        client.chat_postMessage(channel=channel, blocks=tweets_begin_blocks)
+
+        # Content
+        for tweet in tweets:
+            client.chat_postMessage(channel=channel, text=tweet.text)
+
+        # End
+        client.chat_postMessage(channel=channel, blocks=tweets_end_blocks)
+    else:
+        # No new content.
+        client.chat_postMessage(channel=channel, blocks=tweets_no_new_content_blocks)
 
 
 def post_current_datetime():
