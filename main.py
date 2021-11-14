@@ -1,14 +1,12 @@
 import configparser
 import threading
 import time
-from slack_worker import post_new_content
 from dotenv import load_dotenv
 from flask import Flask, Response
 import logging
 
 import slack_worker
-import twitter_api
-import ast
+import twitter_worker
 
 # Environment
 load_dotenv()
@@ -23,11 +21,6 @@ logger = logging.getLogger()
 
 # Flask
 app = Flask(__name__)
-
-# Twitter
-twitter_client = twitter_api.TwitterAPI()
-pages_to_pull = config["TWITTER"]["pages"]
-pages_to_pull = ast.literal_eval(pages_to_pull) # Convert string that represents list, to python list type
 
 # Globals / others
 running = False
@@ -44,9 +37,9 @@ def command_new_content():
     # channel_id = data.get("channel_id")
     # client.chat_postMessage(channel=channel_id, text="Ok")
 
-    for page in pages_to_pull:
-        tweets = twitter_client.pull_tweets_last_hour(page)
-        post_new_content(page, tweets)
+    for page in twitter_worker.pages_to_pull:
+        tweets = twitter_worker.pull_tweets_last_hour(page)
+        slack_worker.post_new_content(page, tweets)
 
     return Response(), 200
 

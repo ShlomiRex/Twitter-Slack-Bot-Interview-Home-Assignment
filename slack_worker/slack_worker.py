@@ -5,9 +5,9 @@ from datetime import datetime
 import slack
 from dotenv import load_dotenv
 
-from twitter_api import Tweet
-
 # Environment
+from twitter_worker.twitter_worker import Tweet
+
 load_dotenv()
 
 # Logging
