@@ -10,25 +10,38 @@ from flask import Flask, request, Response
 from slackeventsapi import SlackEventAdapter
 import logging
 
-logging.basicConfig(level=logging.INFO)
+import twitter_api
 
+# Logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
+# Environment
 env_path = Path(".") / ".env"
 load_dotenv(dotenv_path=env_path)
 
+# Flask
 app = Flask(__name__)
 
+# Slack API
 client = slack.WebClient(token=os.environ["SLACK_TOKEN"])
 # slack_event_adapter = SlackEventAdapter(os.environ["SLACK_SIGNING_SECRET"], "/slack/events", app)
 
+# Twitter API
+twitter_client = twitter_api.TwitterAPI()
+
+# Globals / others
 channel_content = "content"
 running = False
+
 
 
 # @slack_event_adapter.on("message")
 # def msg(payload):
 #     print(payload)
+
+
+tweets = twitter_client.pull_tweets_last_hour("PythonWeekly")
 
 
 @app.route("/new-content", methods=["POST"])
