@@ -24,7 +24,7 @@ load_dotenv(dotenv_path=env_path)
 app = Flask(__name__)
 
 # Slack API
-client = slack.WebClient(token=os.environ["SLACK_TOKEN"])
+slack_client = slack.WebClient(token=os.environ["SLACK_TOKEN"])
 # slack_event_adapter = SlackEventAdapter(os.environ["SLACK_SIGNING_SECRET"], "/slack/events", app)
 
 # Twitter API
@@ -33,15 +33,12 @@ twitter_client = twitter_api.TwitterAPI()
 # Globals / others
 channel_content = "content"
 running = False
-
+pages_to_pull = ["PythonWeekly", "realpython", "fullstackpython"]
 
 
 # @slack_event_adapter.on("message")
 # def msg(payload):
 #     print(payload)
-
-
-tweets = twitter_client.pull_tweets_last_hour("PythonWeekly")
 
 
 @app.route("/new-content", methods=["POST"])
@@ -54,7 +51,13 @@ def command_new_content():
     # data = request.form
     # channel_id = data.get("channel_id")
     # client.chat_postMessage(channel=channel_id, text="Ok")
-    client.chat_postMessage(channel=channel_content, text="Ok")
+
+    for page in pages_to_pull:
+        tweets = twitter_client.pull_tweets_last_hour(page)
+        if tweets:
+            slack_client.chat_postMessage(channel=channel_content, text=f"New content for: {page}", )
+        for tweet in tweets:
+            slack_client.chat_postMessage(channel=channel_content, text=tweet.text)
 
     return Response(), 200
 
@@ -73,7 +76,7 @@ def post_current_datetime():
     :return:
     """
     logger.info("Posting current datetime")
-    client.chat_postMessage(channel=channel_content, text=f"Current time: {datetime.datetime.now()}")
+    slack_client.chat_postMessage(channel=channel_content, text=f"Current time: {datetime.datetime.now()}")
 
 
 def dispatch_time_bot(every):
@@ -94,7 +97,9 @@ def dispatch_time_bot(every):
 if __name__ == "__main__":
     running = True
 
+    # Run flask
     kwargs = {'host': '127.0.0.1', 'port': 5000, 'threaded': True, 'use_reloader': False, 'debug': False}
     flaskThread = threading.Thread(target=app.run, daemon=True, kwargs=kwargs).start()
 
+    # Run bot's time functionality in separate thread
     dispatch_time_bot(every=3600)
