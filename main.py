@@ -1,44 +1,37 @@
-import datetime
-import os
+import configparser
 import threading
 import time
-
-import slack
-from pathlib import Path
+from slack_worker import post_new_content
 from dotenv import load_dotenv
-from flask import Flask, request, Response
-from slackeventsapi import SlackEventAdapter
+from flask import Flask, Response
 import logging
 
+import slack_worker
 import twitter_api
+import ast
+
+# Environment
+load_dotenv()
+
+# Configuration files
+config = configparser.ConfigParser()
+config.read("config.ini")
 
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
-# Environment
-env_path = Path(".") / ".env"
-load_dotenv(dotenv_path=env_path)
-
 # Flask
 app = Flask(__name__)
 
-# Slack API
-slack_client = slack.WebClient(token=os.environ["SLACK_TOKEN"])
-# slack_event_adapter = SlackEventAdapter(os.environ["SLACK_SIGNING_SECRET"], "/slack/events", app)
-
-# Twitter API
+# Twitter
 twitter_client = twitter_api.TwitterAPI()
+pages_to_pull = config["TWITTER"]["pages"]
+pages_to_pull = ast.literal_eval(pages_to_pull) # Convert string that represents list, to python list type
 
 # Globals / others
 channel_content = "content"
 running = False
-pages_to_pull = ["PythonWeekly", "realpython", "fullstackpython"]
-
-
-# @slack_event_adapter.on("message")
-# def msg(payload):
-#     print(payload)
 
 
 @app.route("/new-content", methods=["POST"])
@@ -54,10 +47,7 @@ def command_new_content():
 
     for page in pages_to_pull:
         tweets = twitter_client.pull_tweets_last_hour(page)
-        if tweets:
-            slack_client.chat_postMessage(channel=channel_content, text=f"New content for: {page}", )
-        for tweet in tweets:
-            slack_client.chat_postMessage(channel=channel_content, text=tweet.text)
+        post_new_content(page, tweets)
 
     return Response(), 200
 
@@ -65,18 +55,9 @@ def command_new_content():
 @app.route("/now", methods=["POST"])
 def command_now():
     logger.info("Command 'now' called")
-    post_current_datetime()
+    slack_worker.post_current_datetime()
 
     return Response(), 200
-
-
-def post_current_datetime():
-    """
-    Post to channel the current time.
-    :return:
-    """
-    logger.info("Posting current datetime")
-    slack_client.chat_postMessage(channel=channel_content, text=f"Current time: {datetime.datetime.now()}")
 
 
 def dispatch_time_bot(every):
@@ -88,7 +69,7 @@ def dispatch_time_bot(every):
 
     def time_loop():
         while running:
-            post_current_datetime()
+            slack_worker.post_current_datetime()
             time.sleep(every)
 
     threading.Thread(target=time_loop).start()
