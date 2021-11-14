@@ -30,7 +30,6 @@ pages_to_pull = config["TWITTER"]["pages"]
 pages_to_pull = ast.literal_eval(pages_to_pull) # Convert string that represents list, to python list type
 
 # Globals / others
-channel_content = "content"
 running = False
 
 

@@ -35,6 +35,7 @@ def post_new_content(page: str, tweets: [Tweet]):
     :param tweets: List of tweets
     :return:
     """
+    logger.info("Posting new content")
     tweets_begin_blocks = [
         {
             "type": "header",
@@ -90,7 +91,7 @@ def post_new_content(page: str, tweets: [Tweet]):
 
 def post_current_datetime():
     """
-    Post to channel the current time.
+    Post current date and time to slack.
     :return:
     """
     logger.info("Posting current datetime")

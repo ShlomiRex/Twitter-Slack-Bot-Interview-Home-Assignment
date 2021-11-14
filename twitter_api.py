@@ -22,16 +22,6 @@ class TwitterAPI:
         }
         self.users = {}
 
-    def _get_id_from_username(self, username):
-        if username in self.users:
-            return self.users[username]
-        try:
-            res = requests.get(f"https://api.twitter.com/2/users/by/username/{username}", headers=self.headers)
-            id = res.json().get("data").get("id")
-            self.users[username] = id
-            return id
-        except Exception as e:
-            logger.error(e)
 
     def _process_tweets(self, js: dict) -> [Tweet]:
         """
@@ -39,6 +29,7 @@ class TwitterAPI:
         :param js: Dictionary which can contain data and metadata.
         :return: List of tweets.
         """
+        logger.debug("Processing tweets")
         result_count = 0
         if "meta" in js:
             if "result_count" in js["meta"]:
@@ -63,19 +54,19 @@ class TwitterAPI:
         :param page:Username (Twitter ID)
         :return:JSON containing the tweets.
         """
-        id = self._get_id_from_username(page)
-        if id:
-            latest_tweets_dateime = datetime.datetime.now()
-            latest_tweets_dateime -= datetime.timedelta(hours=100)  # TODO: Change back to 1 hour.
+        logger.info(f"Pulling tweets from last hour")
 
-            iso8601_date_format = latest_tweets_dateime.strftime('%Y-%m-%dT%H:%M:%SZ')
+        latest_tweets_dateime = datetime.datetime.now()
+        latest_tweets_dateime -= datetime.timedelta(hours=100)  # TODO: Change back to 1 hour. This is only for testing.
 
-            params = {
-                "max_results": max_results,
-                "start_time": str(iso8601_date_format)
-            }
-            res = requests.get(f"https://api.twitter.com/2/users/{id}/tweets", headers=self.headers, params=params)
+        iso8601_date_format = latest_tweets_dateime.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-            return self._process_tweets(res.json())
-        else:
-            raise RuntimeError("Couldn't get ID for the page: " + page)
+        params = {
+            "max_results": max_results,
+            "start_time": str(iso8601_date_format),
+            "query": f"from:{page}"
+        }
+
+        res = requests.get(f"https://api.twitter.com/2/tweets/search/recent", headers=self.headers, params=params)
+
+        return self._process_tweets(res.json())
