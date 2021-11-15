@@ -2,3 +2,5 @@
 .idea/
 *.pyc
 tweets.db
+timestamsp.pkl
+.idea/*
