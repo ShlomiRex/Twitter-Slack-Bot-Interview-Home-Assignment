@@ -1,5 +1,6 @@
 import configparser
 import datetime
+import os.path
 import pickle
 import threading
 import time
@@ -28,7 +29,7 @@ app = Flask(__name__)
 
 # Globals / others
 running = False
-pickled_timestamps_file = "timestamsp.pkl"
+pickled_timestamps_file = "scan_timestamps.pkl"
 
 
 @app.route("/new-content", methods=["POST"])
@@ -58,22 +59,33 @@ def command_now():
 
 
 def get_last_scan_timestamp(twitter_id: str):
+    if os.path.exists(pickled_timestamps_file):
+        with open(pickled_timestamps_file, "rb") as file:
+            obj = pickle.load(file)
+            if obj:
+                return obj[twitter_id]
+
+
+def push_scan_timestamp(twitter_id: str, timestamp: datetime.datetime):
+    if not os.path.exists(pickled_timestamps_file):
+        open(pickled_timestamps_file, "x")
     with open(pickled_timestamps_file, "rb") as file:
-        obj = pickle.load(file)
-        if obj:
-            return obj[twitter_id]
+        try:
+            obj = pickle.load(file)
+        except EOFError:
+            obj = None
 
-
-def push_scan_timestamp(twitter_id: str):
     with open(pickled_timestamps_file, "wb") as file:
-        pickle.dump({
-            twitter_id: datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
-        }, file)
+        if obj:
+            obj[twitter_id] = timestamp
+        else:
+            obj = {twitter_id: timestamp}
+        pickle.dump(obj, file)
 
 
 def dispatch_bot(twitter_username: str, every: int):
     """
-    Run the time bot. It writes to channel every X seconds the current time.
+    Run the time bot. It writes to channel every X seconds the current time. It also scans for new tweets.
     :param twitter_username:
     :param every:Amount of seconds to wait between sends.
     :return:
@@ -81,7 +93,8 @@ def dispatch_bot(twitter_username: str, every: int):
     def time_loop():
         while running:
             timestamp = get_last_scan_timestamp(twitter_username)
-            push_scan_timestamp(twitter_username)
+            utc_now = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)  # TODO: Remove timedelta
+            push_scan_timestamp(twitter_username, utc_now)
             if timestamp:
                 tweets = twitter_worker.pull_tweets(twitter_username, timestamp)
                 if tweets:
@@ -90,6 +103,7 @@ def dispatch_bot(twitter_username: str, every: int):
             time.sleep(every)
 
     threading.Thread(target=time_loop).start()
+
 
 def get_new_tweets(twitter_id: str) -> [Tweet]:
     """
