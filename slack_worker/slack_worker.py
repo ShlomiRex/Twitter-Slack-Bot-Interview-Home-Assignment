@@ -4,9 +4,8 @@ import os
 from datetime import datetime
 import slack
 from dotenv import load_dotenv
-
-# Environment
 from twitter_worker.twitter_worker import Tweet
+from database import tweets_db
 
 load_dotenv()
 
@@ -28,10 +27,10 @@ channel = config["SLACK"]["channel"]
 # def msg(payload):
 #     print(payload)
 
-def post_new_content(page: str, tweets: [Tweet]):
+def post_new_content(twitter_username: str, tweets: [Tweet]):
     """
     Post new content to slack.
-    :param page: User ID / page / username
+    :param twitter_username: User ID / page / username
     :param tweets: List of tweets
     :return:
     """
@@ -41,7 +40,7 @@ def post_new_content(page: str, tweets: [Tweet]):
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": f"Showing new content for :star:{page}:star:",
+                "text": f"Showing new content for :star:{twitter_username}:star:",
                 "emoji": True
             }
         },
@@ -57,7 +56,7 @@ def post_new_content(page: str, tweets: [Tweet]):
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": f"End content for :star:{page}:star:",
+                "text": f"End content for :star:{twitter_username}:star:",
                 "emoji": True
             }
         }
@@ -68,21 +67,24 @@ def post_new_content(page: str, tweets: [Tweet]):
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": f"No new content for :star:{page}:star:",
+                "text": f"No new content for :star:{twitter_username}:star:",
                 "emoji": True
             }
         }
     ]
 
     if tweets:
-        # Begin
+        # Begin header
         client.chat_postMessage(channel=channel, blocks=tweets_begin_blocks)
 
         # Content
         for tweet in tweets:
             client.chat_postMessage(channel=channel, text=tweet.text)
 
-        # End
+            # Save tweet
+            tweets_db.insert_tweet(tweet.id, twitter_username)
+
+        # End footer
         client.chat_postMessage(channel=channel, blocks=tweets_end_blocks)
     else:
         # No new content.
@@ -96,3 +98,8 @@ def post_current_datetime():
     """
     logger.info("Posting current datetime")
     client.chat_postMessage(channel=channel, text=f"Current time: {datetime.now()}")
+
+
+def search_bot_tweet_mention_user(user_tweet_id: str):
+
+    return None

@@ -9,6 +9,8 @@ import slack_worker
 import twitter_worker
 
 # Environment
+from twitter_worker.twitter_worker import Tweet
+
 load_dotenv()
 
 # Configuration files
@@ -52,7 +54,7 @@ def command_now():
     return Response(), 200
 
 
-def dispatch_time_bot(every):
+def dispatch_time_bot(every: int):
     """
     Run the time bot. It writes to channel every X seconds the current time.
     :param every:Amount of seconds to wait between sends.
@@ -67,6 +69,38 @@ def dispatch_time_bot(every):
     threading.Thread(target=time_loop).start()
 
 
+def dispatch_new_tweets_bot(every: int, twitter_username: str):
+    """
+    Runs the bot that checks if user has new tweets.
+    :param every:
+    :param twitter_username:
+    :return:
+    """
+    def time_loop():
+        while running:
+            twitter_worker.pull_new_tweets(twitter_username)
+            time.sleep(every)
+
+    threading.Thread(target=time_loop).start()
+
+
+def get_new_tweets(twitter_id: str) -> [Tweet]:
+    """
+    Posts to slack new tweets made by a user, without posting the same tweet twice.
+    :param twitter_id:
+    :return:
+    """
+    # First get the tweets of the last hour.
+    last_hour_tweets = twitter_worker.pull_tweets_last_hour(twitter_id)
+
+    # Because the bot can be down for some time, we need to know what is the last message of the bot.
+    # When we have the time of last activity, we can filter all slack messages (persistent) since then, and
+    # post only new tweets.
+    slack_worker.search_bot_tweet_mention_user(twitter_id)
+
+    pass
+
+
 if __name__ == "__main__":
     running = True
 
@@ -76,3 +110,7 @@ if __name__ == "__main__":
 
     # Run bot's time functionality in separate thread
     dispatch_time_bot(every=3600)
+
+    # Run the bot's tweet sense in separate thread
+    dispatch_new_tweets_bot(every=30, twitter_username="DomnenkoShlomi")
+

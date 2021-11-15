@@ -50,14 +50,14 @@ def _process_tweets(js: dict) -> [Tweet]:
     return res
 
 
-def pull_tweets_last_hour(page, max_results: int = 10):
+def pull_tweets_last_hour(twitter_id, max_results: int = 10):
     """
     Pulls tweets from a page(user) from the last hour.
-    :param max_results: Maximum results to get.
-    :param page:Username (Twitter ID)
+    :param max_results: Maximum results to get. Minimum is 5.
+    :param twitter_id:Username (Twitter ID)
     :return:JSON containing the tweets.
     """
-    logger.info(f"Pulling tweets from last hour for page: {page}")
+    logger.info(f"Pulling tweets from last hour for page: {twitter_id}")
 
     latest_tweets_datetime = datetime.now()
     latest_tweets_datetime -= timedelta(hours=100)  # TODO: Change back to 1 hour. This is only for testing.
@@ -67,11 +67,12 @@ def pull_tweets_last_hour(page, max_results: int = 10):
     params = {
         "max_results": max_results,
         "start_time": str(iso8601_date_format),
-        "query": f"from:{page}"
+        "query": f"from:{twitter_id}"
     }
 
     res = requests.get(f"https://api.twitter.com/2/tweets/search/recent", headers=headers, params=params)
 
     return _process_tweets(res.json())
 
-
+def pull_new_tweets(twitter_username: str):
+    return None
