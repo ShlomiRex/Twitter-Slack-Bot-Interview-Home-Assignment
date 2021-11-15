@@ -2,7 +2,7 @@ import configparser
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 
 import slack
 from dotenv import load_dotenv
@@ -30,7 +30,7 @@ channel_id = config["SLACK"]["channel_id"]
 # def msg(payload):
 #     print(payload)
 
-def post_new_content(twitter_username: str, tweets: [Tweet]):
+def post_new_content(twitter_username: str, tweets: Optional[List[Tweet]]):
     """
     Post new content to slack.
     :param twitter_username: User ID / page / username

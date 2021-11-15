@@ -39,13 +39,23 @@ def command_new_content():
     :return:
     """
     logger.info("Command 'new-content' called")
-    # data = request.form
-    # channel_id = data.get("channel_id")
-    # client.chat_postMessage(channel=channel_id, text="Ok")
 
-    for page in twitter_worker.pages_to_pull:
-        tweets = twitter_worker.pull_tweets_last_hour(page)
-        slack_worker.post_new_content(page, tweets)
+    # In order to not get "operation_timeout" we can run this in another thread
+    def threaded_task():
+        for page in twitter_worker.pages_to_pull:
+            scan_timestamp = get_last_scan_timestamp(page)
+            if not scan_timestamp:
+                # Defaults to one hour as per instructions.
+                tweets = twitter_worker.pull_tweets_last_hour(page)
+                push_scan_timestamp(page, datetime.datetime.utcnow() - datetime.timedelta(hours=1))
+            else:
+                # Else, we scan again from the scan timestamp. If new tweets appear, it will be because of from the delta
+                # timing.
+                tweets = twitter_worker.pull_tweets(page, start_time=scan_timestamp)
+                push_scan_timestamp(page, datetime.datetime.utcnow())
+            slack_worker.post_new_content(page, tweets)
+
+    threading.Thread(target=threaded_task).start()
 
     return Response(), 200
 
@@ -59,14 +69,25 @@ def command_now():
 
 
 def get_last_scan_timestamp(twitter_id: str):
+    """
+    Read pickle file and return the scan timestamp for this user.
+    :param twitter_id:
+    :return:
+    """
     if os.path.exists(pickled_timestamps_file):
         with open(pickled_timestamps_file, "rb") as file:
             obj = pickle.load(file)
-            if obj:
+            if obj and obj.get(twitter_id):
                 return obj[twitter_id]
 
 
 def push_scan_timestamp(twitter_id: str, timestamp: datetime.datetime):
+    """
+    Write scan timestamp for a user.
+    :param twitter_id:
+    :param timestamp:
+    :return:
+    """
     if not os.path.exists(pickled_timestamps_file):
         open(pickled_timestamps_file, "x")
     with open(pickled_timestamps_file, "rb") as file:
@@ -93,7 +114,8 @@ def dispatch_bot(twitter_username: str, every: int):
     def time_loop():
         while running:
             timestamp = get_last_scan_timestamp(twitter_username)
-            utc_now = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)  # TODO: Remove timedelta
+            #utc_now = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)  # TODO: Remove timedelta
+            utc_now = datetime.datetime.utcnow()
             push_scan_timestamp(twitter_username, utc_now)
             if timestamp:
                 tweets = twitter_worker.pull_tweets(twitter_username, timestamp)
@@ -103,25 +125,6 @@ def dispatch_bot(twitter_username: str, every: int):
             time.sleep(every)
 
     threading.Thread(target=time_loop).start()
-
-
-def get_new_tweets(twitter_id: str) -> [Tweet]:
-    """
-    Posts to slack new tweets made by a user, without posting the same tweet twice.
-    :param twitter_id:
-    :return:
-    """
-    # First get the tweets of the last hour.
-    last_hour_tweets = twitter_worker.pull_tweets_last_hour(twitter_id)
-
-    # Because the bot can be down for some time, we need to know what is the last message of the bot.
-    # When we have the time of last activity, we can filter all slack messages (persistent) since then, and
-    # post only new tweets.
-
-
-    print(last_hour_tweets)
-
-    pass
 
 
 if __name__ == "__main__":

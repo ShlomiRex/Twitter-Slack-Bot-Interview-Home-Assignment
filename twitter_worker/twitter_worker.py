@@ -56,7 +56,7 @@ def _process_tweets(js: dict) -> [Tweet]:
 
 def pull_tweets_last_hour(twitter_id):
     latest_tweets_datetime = datetime.now()
-    latest_tweets_datetime -= timedelta(hours=100)  # TODO: Change back to 1 hour. This is only for testing.
+    latest_tweets_datetime -= timedelta(hours=1)
 
     return pull_tweets(twitter_id, start_time=latest_tweets_datetime)
 
@@ -85,15 +85,3 @@ def pull_tweets(twitter_id: str, start_time: datetime, max_results: int = 10):
         return _process_tweets(res.json())
     else:
         logger.error(res.json())
-
-
-def pull_new_tweets(twitter_username: str) -> Optional[List[Tweet]]:
-    # Search current time in slack
-    timestamp = slack_worker.get_recent_time_activity()
-    if timestamp:
-        # Pull tweets from start time of the above time
-        return pull_tweets(twitter_username, start_time=timestamp)
-    else:
-        # First time the bot runs. We don't pull anything.
-        pass
-
