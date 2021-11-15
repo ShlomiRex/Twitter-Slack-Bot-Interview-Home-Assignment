@@ -1,11 +1,12 @@
 import configparser
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Optional
+
 import slack
 from dotenv import load_dotenv
 from twitter_worker.twitter_worker import Tweet
-from database import tweets_db
 
 load_dotenv()
 
@@ -17,8 +18,10 @@ config = configparser.ConfigParser()
 config.read("config.ini")
 
 # Globals
-client = slack.WebClient(token=os.environ["SLACK_TOKEN"])
+#client = slack.WebClient(token=os.environ["SLACK_TOKEN"])
+client = slack.WebClient(token=os.environ["SLACK_BOT_USER_TOKEN"])
 channel = config["SLACK"]["channel"]
+channel_id = config["SLACK"]["channel_id"]
 
 
 # slack_event_adapter = SlackEventAdapter(os.environ["SLACK_SIGNING_SECRET"], "/slack/events", app)
@@ -81,9 +84,6 @@ def post_new_content(twitter_username: str, tweets: [Tweet]):
         for tweet in tweets:
             client.chat_postMessage(channel=channel, text=tweet.text)
 
-            # Save tweet
-            tweets_db.insert_tweet(tweet.id, twitter_username)
-
         # End footer
         client.chat_postMessage(channel=channel, blocks=tweets_end_blocks)
     else:
@@ -100,6 +100,51 @@ def post_current_datetime():
     client.chat_postMessage(channel=channel, text=f"Current time: {datetime.now()}")
 
 
-def search_bot_tweet_mention_user(user_tweet_id: str):
+def get_recent_time_activity() -> Optional[datetime]:
+    #result = client.conversations_history(channel=channel_id, limit=5, inclusive=True, oldest=)
 
-    return None
+    # Get the messages of last hour. (and a bit of gap in extreme case)
+    _oldest = datetime.now() - timedelta(hours=1, minutes=1)
+    _oldest = datetime.timestamp(_oldest)
+    result = client.conversations_history(channel=channel_id, inclusive=True, oldest=_oldest)
+    messages = result.get("messages")
+
+    # Sort messages by timestamp
+    messages = sorted(messages, key=lambda d: d["ts"])
+
+    # Reverse (so we can iterate the most recent messages)
+    messages.reverse()
+
+    for msg in messages:
+        ts = msg.get("ts")
+        text = msg.get("text")
+
+        _datetime = datetime.fromtimestamp(float(ts))
+
+        if "Current time" in text:
+            # We found latest activity.
+            logger.info("Latest bot activity timestamp: " + str(_datetime) + f" and the text is: '{text}'")
+            return _datetime
+
+
+def post_tweets(twitter_username: str, tweets: [Tweet]):
+    if tweets:
+        logger.info(f"Posting {len(tweets)} tweets to slack...")
+
+        tweets_begin_blocks = [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"New tweets from: :star:{twitter_username}:star:",
+                    "emoji": True
+                }
+            },
+            {
+                "type": "divider"
+            }
+        ]
+        client.chat_postMessage(channel=channel, blocks=tweets_begin_blocks)
+        for tweet in tweets:
+            client.chat_postMessage(channel=channel, text=tweet.text)
+

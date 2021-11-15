@@ -4,10 +4,14 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Optional, List
+
 from dotenv import load_dotenv
 import requests
 
 # Logging
+import slack_worker
+
 logger = logging.getLogger()
 
 # Configuration files, environ
@@ -50,29 +54,46 @@ def _process_tweets(js: dict) -> [Tweet]:
     return res
 
 
-def pull_tweets_last_hour(twitter_id, max_results: int = 10):
-    """
-    Pulls tweets from a page(user) from the last hour.
-    :param max_results: Maximum results to get. Minimum is 5.
-    :param twitter_id:Username (Twitter ID)
-    :return:JSON containing the tweets.
-    """
-    logger.info(f"Pulling tweets from last hour for page: {twitter_id}")
-
+def pull_tweets_last_hour(twitter_id):
     latest_tweets_datetime = datetime.now()
     latest_tweets_datetime -= timedelta(hours=100)  # TODO: Change back to 1 hour. This is only for testing.
 
-    iso8601_date_format = latest_tweets_datetime.strftime('%Y-%m-%dT%H:%M:%SZ')
+    return pull_tweets(twitter_id, start_time=latest_tweets_datetime)
+
+
+def pull_tweets(twitter_id: str, start_time: datetime, max_results: int = 10):
+    """
+    Pulls tweets from a user by given start time.
+    :param start_time:Datetime in UTC (important!)
+    :param max_results: Maximum results to get. Minimum is 5.
+    :param twitter_id:Username (Twitter ID)
+    :return:List of tweets.
+    """
+    logger.info(f"Pulling tweets for {twitter_id} with start time: {start_time}")
+
+    iso8601_date_format = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     params = {
         "max_results": max_results,
-        "start_time": str(iso8601_date_format),
+        "start_time": iso8601_date_format,
         "query": f"from:{twitter_id}"
     }
 
     res = requests.get(f"https://api.twitter.com/2/tweets/search/recent", headers=headers, params=params)
 
-    return _process_tweets(res.json())
+    if res.ok:
+        return _process_tweets(res.json())
+    else:
+        logger.error(res.json())
 
-def pull_new_tweets(twitter_username: str):
-    return None
+
+def pull_new_tweets(twitter_username: str) -> Optional[List[Tweet]]:
+    # Search current time in slack
+    timestamp = slack_worker.get_recent_time_activity()
+    if timestamp:
+        # Pull tweets from start time of the above time
+        return pull_tweets(twitter_username, start_time=timestamp)
+    else:
+        # First time the bot runs. We don't pull anything.
+        pass
+

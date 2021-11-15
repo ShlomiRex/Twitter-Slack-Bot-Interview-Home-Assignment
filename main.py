@@ -1,4 +1,6 @@
 import configparser
+import datetime
+import pickle
 import threading
 import time
 from dotenv import load_dotenv
@@ -26,6 +28,7 @@ app = Flask(__name__)
 
 # Globals / others
 running = False
+pickled_timestamps_file = "timestamsp.pkl"
 
 
 @app.route("/new-content", methods=["POST"])
@@ -54,35 +57,39 @@ def command_now():
     return Response(), 200
 
 
-def dispatch_time_bot(every: int):
+def get_last_scan_timestamp(twitter_id: str):
+    with open(pickled_timestamps_file, "rb") as file:
+        obj = pickle.load(file)
+        if obj:
+            return obj[twitter_id]
+
+
+def push_scan_timestamp(twitter_id: str):
+    with open(pickled_timestamps_file, "wb") as file:
+        pickle.dump({
+            twitter_id: datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+        }, file)
+
+
+def dispatch_bot(twitter_username: str, every: int):
     """
     Run the time bot. It writes to channel every X seconds the current time.
+    :param twitter_username:
     :param every:Amount of seconds to wait between sends.
     :return:
     """
-
     def time_loop():
         while running:
+            timestamp = get_last_scan_timestamp(twitter_username)
+            push_scan_timestamp(twitter_username)
+            if timestamp:
+                tweets = twitter_worker.pull_tweets(twitter_username, timestamp)
+                if tweets:
+                    slack_worker.post_tweets(twitter_username, tweets)
             slack_worker.post_current_datetime()
             time.sleep(every)
 
     threading.Thread(target=time_loop).start()
-
-
-def dispatch_new_tweets_bot(every: int, twitter_username: str):
-    """
-    Runs the bot that checks if user has new tweets.
-    :param every:
-    :param twitter_username:
-    :return:
-    """
-    def time_loop():
-        while running:
-            twitter_worker.pull_new_tweets(twitter_username)
-            time.sleep(every)
-
-    threading.Thread(target=time_loop).start()
-
 
 def get_new_tweets(twitter_id: str) -> [Tweet]:
     """
@@ -96,7 +103,9 @@ def get_new_tweets(twitter_id: str) -> [Tweet]:
     # Because the bot can be down for some time, we need to know what is the last message of the bot.
     # When we have the time of last activity, we can filter all slack messages (persistent) since then, and
     # post only new tweets.
-    slack_worker.search_bot_tweet_mention_user(twitter_id)
+
+
+    print(last_hour_tweets)
 
     pass
 
@@ -109,8 +118,6 @@ if __name__ == "__main__":
     flaskThread = threading.Thread(target=app.run, daemon=True, kwargs=kwargs).start()
 
     # Run bot's time functionality in separate thread
-    dispatch_time_bot(every=3600)
+    dispatch_bot(twitter_username="DomnenkoShlomi", every=3600)
 
-    # Run the bot's tweet sense in separate thread
-    dispatch_new_tweets_bot(every=30, twitter_username="DomnenkoShlomi")
 

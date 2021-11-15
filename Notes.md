@@ -4,6 +4,7 @@
 * DBeaver
 * PyCharm Professional
 * Google
+* ngrok - For public domain for testing
 
 # Why I use SQLite database?
 

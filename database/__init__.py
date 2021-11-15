@@ -1,1 +1,0 @@
-from .tweets_db import insert_tweet
