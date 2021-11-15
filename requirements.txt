@@ -2,3 +2,4 @@ python-dotenv
 flask
 slackclient
 requests
+requests_oauthlib

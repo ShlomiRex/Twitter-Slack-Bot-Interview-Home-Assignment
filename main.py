@@ -5,7 +5,7 @@ import pickle
 import threading
 import time
 from dotenv import load_dotenv
-from flask import Flask, Response
+from flask import Flask, Response, request
 import logging
 
 import slack_worker
@@ -66,6 +66,29 @@ def command_now():
     slack_worker.post_current_datetime()
 
     return Response(), 200
+
+
+@app.route("/tweet", methods=["POST"])
+def command_tweet():
+    logger.info("Command 'tweet' called")
+    command_text = request.form.get("text")
+    if command_text:
+        s = command_text.split(" ", 1)
+        if len(s) != 2:
+            return Response("No recipient and no message was given.", 400)
+
+        twitter_id = s[0]
+        msg = s[1]
+
+        success, reason = twitter_worker.tweet(twitter_id, msg)
+        if success:
+            return Response(), 200
+        else:
+            return Response(reason, 400)
+    else:
+        return Response("No tweeter id specified.", 400)
+
+
 
 
 def get_last_scan_timestamp(twitter_id: str):

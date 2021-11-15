@@ -4,12 +4,14 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, List
+from requests_oauthlib import OAuth1
 
 from dotenv import load_dotenv
 import requests
 
 # Logging
+from requests.auth import HTTPBasicAuth
+
 import slack_worker
 
 logger = logging.getLogger()
@@ -85,3 +87,25 @@ def pull_tweets(twitter_id: str, start_time: datetime, max_results: int = 10):
         return _process_tweets(res.json())
     else:
         logger.error(res.json())
+
+
+def tweet(twitter_id: str, text: str) -> (bool, str):
+    """
+    Tweets a message onto the twitter platform.
+    :param twitter_id: Is only used for logging. Will use environment tokens and API keys instead of this username.
+    :param text: Message to post.
+    :return:First parameter is success. If false, the second argument is the reason.
+    """
+    if text and len(text) > 0:
+        logger.info(f"Tweeting: '{twitter_id}' with message: '{text}'")
+        auth = OAuth1(os.environ["TWITTER_API_KEY"],
+                      os.environ["TWITTER_API_KEY_SECRET"],
+                      os.environ["TWITTER_ACCESS_TOKEN"],
+                      os.environ["TWITTER_ACCESS_TOKEN_SECRET"])
+        headers = {'Content-Type': 'application/json'}
+        payload = {"text": text}
+        res = requests.post("https://api.twitter.com/2/tweets", json=payload, auth=auth, headers=headers)
+        return res.ok, res.text
+    else:
+        logger.info("Will not tweet empty message.")
+
